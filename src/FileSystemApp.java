@@ -187,57 +187,75 @@ public class FileSystemApp {
     }
 
     private static String handleCommand(SimpleFileSystem fs, String curPath, String cmd, String[] cmdPart) {
+        boolean notValidCmd = false;
         switch (cmdPart[0]) {
             case "cd": {
                 if (cmdPart.length == 2) {
                     fs.changeDirectory(cmdPart[1]);
                     curPath = fs.currentDirectory.path;
+                    break;
                 }
+                notValidCmd = true;
                 break;
             }
             case "ls": {
                 if (cmdPart.length == 1) {
                     fs.listDirectory();
+                    break;
                 }
+                notValidCmd = true;
                 break;
             }
             case "mkdir": {
                 if (cmdPart.length == 2) {
                     fs.makeDirectory(cmdPart[1]);
+                    break;
                 }
+                notValidCmd = true;
                 break;
             }
             case "rm": {
                 if (cmdPart.length == 2) {
                     fs.removeDirectory(cmdPart[1]);
+                    break;
                 }
+                notValidCmd = true;
                 break;
             }
             case "rmf": {
                 if (cmdPart.length == 2) {
                     FileHandleHelper.removeFile(fs, cmdPart[1]);
+                    break;
                 }
+                notValidCmd = true;
                 break;
             }
             case "touch": {
                 if (cmdPart.length == 2) {
                     FileHandleHelper.createFile(fs, cmdPart[1]);
+                    break;
                 } else if (cmdPart.length == 3) {
                     FileHandleHelper.writeFile(fs, cmdPart[1], cmdPart[2].getBytes());
+                    break;
                 }
+                notValidCmd = true;
                 break;
             }
             case "cat": {
                 if (cmdPart.length == 2) {
                     FileHandleHelper.readFile(fs, cmdPart[1]);
+                    break;
                 }
+                notValidCmd = true;
                 break;
             }
             default: {
-                if (!cmd.equals("exit()")) {
-                    System.out.println("Invalid command");
-                }
+                notValidCmd = true;
             }
+
+        }
+        if (notValidCmd){
+            System.out.println("Invalid command");
         }
         return curPath;
     }
