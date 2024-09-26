@@ -350,7 +350,7 @@ class FileHandleHelper{
     public static void removeFile(SimpleFileSystem fs, String fileName) {
         File file = fs.currentDirectory.removeFile(fileName);
         if (file == null) {
-            System.out.println("File not found: " + fileName + "\n");
+            System.out.println("File not found: " + fileName);
             return;
         }
 
