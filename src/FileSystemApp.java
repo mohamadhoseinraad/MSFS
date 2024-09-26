@@ -101,7 +101,7 @@ class Directory implements Serializable {
     }
 }
 
-class SimpleFileSystem implements Serializable {
+class FileSystem implements Serializable {
     //private static final int TOTAL_BLOCKS = 4096 * 5;  // File system size (1MB with 256-byte blocks)
     final int TOTAL_BLOCKS;
     Block[] blocks;
@@ -109,7 +109,7 @@ class SimpleFileSystem implements Serializable {
     Directory rootDirectory = new Directory("/", null);
     Directory currentDirectory = rootDirectory;
 
-    public SimpleFileSystem(int size) {
+    public FileSystem(int size) {
         TOTAL_BLOCKS = size;
         blocks = new Block[TOTAL_BLOCKS];
         bitMap = new BitSet(TOTAL_BLOCKS);
@@ -145,7 +145,8 @@ class SimpleFileSystem implements Serializable {
             System.out.println("[DIR] " + dirName);
         }
         for (File file : currentDirectory.getFiles().values()) {
-            System.out.println("[FILE] " + file.getFileName() + " ----- " + file.getSize());
+            System.out.println("[FILE] " + file.getFileName() + " ----- " +
+                    Helper.getFileSize(file.getBlockPointers().size()));
         }
     }
 
@@ -172,21 +173,47 @@ class SimpleFileSystem implements Serializable {
 public class FileSystemApp {
 
     public static void main(String[] args) {
-        SimpleFileSystem fs = new SimpleFileSystem(5);
-        //SimpleFileSystem fs = Helper.loadFileSystem("myFileSystem.dat");
-        String curPath = fs.currentDirectory.path;
+        //FileSystem fs = Helper.loadFileSystem("myFileSystem.dat");
+        FileSystem fs = null;
+        System.out.println(Arrays.toString(args));
         String cmd;
         String[] cmdPart;
-        do {
-            System.out.print("MSFS>>" + "myFileSystem" + curPath);
-            cmd = appTerminal.scanner.nextLine();
-            cmdPart = cmd.split(" ");
-            curPath = handleCommand(fs, curPath, cmd, cmdPart);
-            Helper.saveFileSystem("myFileSystem.dat", fs);
-        } while (!cmd.equals("exit()"));
+        //FileSystem fs = new FileSystem(5);
+        int v = args.length;
+        if (v == 0) {
+            System.out.println("Invalid command");
+            return;
+        }
+        if (args[0].equals("mount") && v == 2) {
+            fs = Helper.loadFileSystem(args[1]);
+            if (fs == null) {
+                return;
+            }
+        }
+        if (args[0].equals("create") && v == 4) {
+            fs = Helper.loadFileSystem(args[1]);
+            if (fs != null) {
+                System.out.println(args[1] + " disk is already exist and now open!");
+            } else {
+                fs = new FileSystem(Helper.byteSize(args[2], args[3]));
+                Helper.saveFileSystem(args[1], fs);
+                System.out.println(args[1] + " disk created!");
+            }
+        }
+
+        if (fs != null) {
+            do {
+                String curPath = fs.currentDirectory.path;
+                System.out.print("MSFS>>" + args[1] + ".disk" + curPath);
+                cmd = appTerminal.scanner.nextLine();
+                cmdPart = cmd.split(" ");
+                curPath = handleCommand(fs, curPath, cmd, cmdPart);
+                Helper.saveFileSystem("myFileSystem.dat", fs);
+            } while (!cmd.equals("exit()"));
+        }
     }
 
-    private static String handleCommand(SimpleFileSystem fs, String curPath, String cmd, String[] cmdPart) {
+    private static String handleCommand(FileSystem fs, String curPath, String cmd, String[] cmdPart) {
         boolean notValidCmd = false;
         switch (cmdPart[0]) {
             case "cd": {
@@ -201,6 +228,9 @@ public class FileSystemApp {
             case "ls": {
                 if (cmdPart.length == 1) {
                     fs.listDirectory();
+                    break;
+                } else if (cmdPart[1].equals("-s")) {
+                    fs.listDirectorySize();
                     break;
                 }
                 notValidCmd = true;
@@ -254,7 +284,7 @@ public class FileSystemApp {
             }
 
         }
-        if (notValidCmd){
+        if (notValidCmd) {
             System.out.println("Invalid command");
         }
         return curPath;
@@ -266,8 +296,8 @@ class appTerminal {
 }
 
 class Helper {
-    public static void saveFileSystem(String fileName, SimpleFileSystem fs) {
-        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(fileName))) {
+    public static void saveFileSystem(String fileName, FileSystem fs) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(fileName + ".MSFS"))) {
             oos.writeObject(fs);
             //System.out.println("File system saved to " + fileName +"\n");
         } catch (IOException e) {
@@ -275,10 +305,10 @@ class Helper {
         }
     }
 
-    public static SimpleFileSystem loadFileSystem(String fileName) {
+    public static FileSystem loadFileSystem(String fileName) {
         System.out.println("mounting disk image ....");
-        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(fileName))) {
-            return (SimpleFileSystem) ois.readObject();
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(fileName + ".MSFS"))) {
+            return (FileSystem) ois.readObject();
         } catch (ClassNotFoundException e) {
             System.out.println("Disk image is broken! create new one of format it");
             e.printStackTrace();
@@ -289,11 +319,38 @@ class Helper {
             return null;
         }
     }
+
+    public static String getFileSize(int blcoks_size) {
+        double tmp_size = blcoks_size;
+        if (tmp_size < 1024) {
+            return tmp_size + " b";
+        }
+        if (tmp_size < 1024) {
+            tmp_size = blcoks_size / 1024;
+            return tmp_size + " Kb";
+        } else {
+            tmp_size /= 1024;
+            return tmp_size + " Mb";
+        }
+    }
+
+    public static int byteSize(String num, String unit) {
+        if (unit.equals("b") || unit.equals("B")) {
+            return Integer.parseInt(num);
+        }
+        if (unit.equals("Kb") || unit.equals("KB") || unit.equals("kb")) {
+            return Integer.parseInt(num) * 1024;
+        }
+        if (unit.equals("Mb") || unit.equals("MB") || unit.equals("mb")) {
+            return Integer.parseInt(num) * 4096;
+        }
+        return 1024 * 10;
+    }
 }
 
-class FileHandleHelper{
+class FileHandleHelper {
 
-    public static void createFile(SimpleFileSystem fs, String fileName) {
+    public static void createFile(FileSystem fs, String fileName) {
         if (!fs.currentDirectory.getFiles().containsKey(fileName)) {
             File newFile = new File(fileName);
             fs.currentDirectory.addFile(newFile);
@@ -303,7 +360,7 @@ class FileHandleHelper{
     }
 
     // Write data to a file
-    public static void writeFile(SimpleFileSystem fs, String fileName, byte[] data) {
+    public static void writeFile(FileSystem fs, String fileName, byte[] data) {
         File file = fs.currentDirectory.getFiles().get(fileName);
         if (file == null) {
             System.out.println("File not found: " + fileName + "\n");
@@ -332,7 +389,7 @@ class FileHandleHelper{
         }
     }
 
-    public static void readFile(SimpleFileSystem fs, String fileName) {
+    public static void readFile(FileSystem fs, String fileName) {
         File file = fs.currentDirectory.getFiles().get(fileName);
         if (file == null) {
             System.out.println("File not found: " + fileName + "\n");
@@ -347,7 +404,7 @@ class FileHandleHelper{
         System.out.println();
     }
 
-    public static void removeFile(SimpleFileSystem fs, String fileName) {
+    public static void removeFile(FileSystem fs, String fileName) {
         File file = fs.currentDirectory.removeFile(fileName);
         if (file == null) {
             System.out.println("File not found: " + fileName);
