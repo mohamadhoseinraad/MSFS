@@ -118,55 +118,6 @@ class FileSystem implements Serializable {
         }
     }
 
-    public void changeDirectory(String dirName) {
-        if (dirName.equals("..")) {
-            if (currentDirectory.getParent() != null) {
-                currentDirectory = currentDirectory.getParent();
-            }
-        } else if (currentDirectory.getSubDirectories().containsKey(dirName)) {
-            currentDirectory = currentDirectory.getSubDirectories().get(dirName);
-        } else {
-            System.out.println("Directory not found: " + dirName);
-        }
-    }
-
-    // List files and directories
-    public void listDirectory() {
-        for (String dirName : currentDirectory.getSubDirectories().keySet()) {
-            System.out.println("[DIR] " + dirName);
-        }
-        for (String fileName : currentDirectory.getFiles().keySet()) {
-            System.out.println("[FILE] " + fileName);
-        }
-    }
-
-    public void listDirectorySize() {
-        for (String dirName : currentDirectory.getSubDirectories().keySet()) {
-            System.out.println("[DIR] " + dirName);
-        }
-        for (File file : currentDirectory.getFiles().values()) {
-            System.out.println("[FILE] " + file.getFileName() + " ----- " +
-                    Helper.getFileSize(file.getBlockPointers().size()));
-        }
-    }
-
-    public void makeDirectory(String dirName) {
-        if (!currentDirectory.getSubDirectories().containsKey(dirName)) {
-            Directory newDir = new Directory(dirName, currentDirectory);
-            currentDirectory.addDirectory(newDir);
-        } else {
-            System.out.println("Directory already exists: " + dirName);
-        }
-    }
-
-    public void removeDirectory(String dirName) {
-        if (currentDirectory.getSubDirectories().containsKey(dirName)) {
-            currentDirectory.getSubDirectories().remove(dirName);
-        } else {
-            System.out.println("Directory not found: " + dirName);
-        }
-    }
-
 }
 
 // Main application
@@ -175,7 +126,6 @@ public class FileSystemApp {
     public static void main(String[] args) {
         //FileSystem fs = Helper.loadFileSystem("myFileSystem.dat");
         FileSystem fs = null;
-        System.out.println(Arrays.toString(args));
         String cmd;
         String[] cmdPart;
         //FileSystem fs = new FileSystem(5);
@@ -189,8 +139,7 @@ public class FileSystemApp {
             if (fs == null) {
                 return;
             }
-        }
-        if (args[0].equals("create") && v == 4) {
+        } else if (args[0].equals("create") && v == 4) {
             fs = Helper.loadFileSystem(args[1]);
             if (fs != null) {
                 System.out.println(args[1] + " disk is already exist and now open!");
@@ -199,16 +148,19 @@ public class FileSystemApp {
                 Helper.saveFileSystem(args[1], fs);
                 System.out.println(args[1] + " disk created!");
             }
+        } else {
+            System.out.println("Invalid command");
+            return;
         }
-
+        String curPath = fs.rootDirectory.path;
+        fs.currentDirectory = fs.rootDirectory;
         if (fs != null) {
             do {
-                String curPath = fs.currentDirectory.path;
                 System.out.print("MSFS>>" + args[1] + ".disk" + curPath);
                 cmd = appTerminal.scanner.nextLine();
                 cmdPart = cmd.split(" ");
                 curPath = handleCommand(fs, curPath, cmd, cmdPart);
-                Helper.saveFileSystem("myFileSystem.dat", fs);
+                Helper.saveFileSystem(args[1], fs);
             } while (!cmd.equals("exit()"));
         }
     }
@@ -218,7 +170,7 @@ public class FileSystemApp {
         switch (cmdPart[0]) {
             case "cd": {
                 if (cmdPart.length == 2) {
-                    fs.changeDirectory(cmdPart[1]);
+                    DirectoryHelper.changeDirectory(fs,cmdPart[1]);
                     curPath = fs.currentDirectory.path;
                     break;
                 }
@@ -227,10 +179,10 @@ public class FileSystemApp {
             }
             case "ls": {
                 if (cmdPart.length == 1) {
-                    fs.listDirectory();
+                    DirectoryHelper.listDirectory(fs);
                     break;
                 } else if (cmdPart[1].equals("-s")) {
-                    fs.listDirectorySize();
+                    DirectoryHelper.listDirectorySize(fs);
                     break;
                 }
                 notValidCmd = true;
@@ -238,7 +190,7 @@ public class FileSystemApp {
             }
             case "mkdir": {
                 if (cmdPart.length == 2) {
-                    fs.makeDirectory(cmdPart[1]);
+                    DirectoryHelper.makeDirectory(fs, cmdPart[1]);
                     break;
                 }
                 notValidCmd = true;
@@ -246,7 +198,7 @@ public class FileSystemApp {
             }
             case "rm": {
                 if (cmdPart.length == 2) {
-                    fs.removeDirectory(cmdPart[1]);
+                    DirectoryHelper.removeDirectory(fs, cmdPart[1]);
                     break;
                 }
                 notValidCmd = true;
@@ -285,7 +237,9 @@ public class FileSystemApp {
 
         }
         if (notValidCmd) {
-            System.out.println("Invalid command");
+            if (!cmdPart[0].equals("exit()")){
+                System.out.println("Invalid command");
+            }
         }
         return curPath;
     }
@@ -311,11 +265,9 @@ class Helper {
             return (FileSystem) ois.readObject();
         } catch (ClassNotFoundException e) {
             System.out.println("Disk image is broken! create new one of format it");
-            e.printStackTrace();
             return null;
         } catch (IOException e) {
             System.out.println(fileName + " disk image not fount in directory!");
-            e.printStackTrace();
             return null;
         }
     }
@@ -416,5 +368,56 @@ class FileHandleHelper {
             fs.bitMap.clear(blockIndex);
         }
 
+    }
+}
+
+class DirectoryHelper{
+    public static void changeDirectory(FileSystem fs, String dirName) {
+        if (dirName.equals("..")) {
+            if (fs.currentDirectory.getParent() != null) {
+                fs.currentDirectory = fs.currentDirectory.getParent();
+            }
+        } else if (fs.currentDirectory.getSubDirectories().containsKey(dirName)) {
+            fs.currentDirectory = fs.currentDirectory.getSubDirectories().get(dirName);
+        } else {
+            System.out.println("Directory not found: " + dirName);
+        }
+    }
+
+    // List files and directories
+    public static void listDirectory(FileSystem fs) {
+        for (String dirName : fs.currentDirectory.getSubDirectories().keySet()) {
+            System.out.println("[DIR] " + dirName);
+        }
+        for (String fileName : fs.currentDirectory.getFiles().keySet()) {
+            System.out.println("[FILE] " + fileName);
+        }
+    }
+
+    public static void listDirectorySize(FileSystem fs) {
+        for (String dirName : fs.currentDirectory.getSubDirectories().keySet()) {
+            System.out.println("[DIR] " + dirName);
+        }
+        for (File file : fs.currentDirectory.getFiles().values()) {
+            System.out.println("[FILE] " + file.getFileName() + " ----- " +
+                    Helper.getFileSize(file.getBlockPointers().size()));
+        }
+    }
+
+    public static void makeDirectory(FileSystem fs, String dirName) {
+        if (!fs.currentDirectory.getSubDirectories().containsKey(dirName)) {
+            Directory newDir = new Directory(dirName, fs.currentDirectory);
+            fs.currentDirectory.addDirectory(newDir);
+        } else {
+            System.out.println("Directory already exists: " + dirName);
+        }
+    }
+
+    public static void removeDirectory(FileSystem fs, String dirName) {
+        if (fs.currentDirectory.getSubDirectories().containsKey(dirName)) {
+            fs.currentDirectory.getSubDirectories().remove(dirName);
+        } else {
+            System.out.println("Directory not found: " + dirName);
+        }
     }
 }
