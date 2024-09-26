@@ -1,7 +1,6 @@
 import java.io.*;
 import java.util.*;
 
-// Block to store data in the file system
 class Block implements Serializable {
     public static final int BLOCK_SIZE = 256;  // Block size in bytes
     private byte[] data = new byte[BLOCK_SIZE]; // Actual block data
@@ -15,7 +14,6 @@ class Block implements Serializable {
     }
 }
 
-// File class to represent a file and its block pointers
 class File implements Serializable {
     private String fileName;
     private List<Integer> blockPointers = new ArrayList<>();
@@ -47,7 +45,6 @@ class File implements Serializable {
     }
 }
 
-// Directory class to represent directories and files inside them
 class Directory implements Serializable {
     private String name;
     public String path = "/";
@@ -58,8 +55,8 @@ class Directory implements Serializable {
     public Directory(String name, Directory parent) {
         this.name = name;
         this.parent = parent;
-        if (parent != null){
-            path = parent.path + name +"/";
+        if (parent != null) {
+            path = parent.path + name + "/";
         }
     }
 
@@ -87,6 +84,14 @@ class Directory implements Serializable {
         return false;
     }
 
+    public File removeFile(String fileName) {
+        if (files.containsKey(fileName)) {
+            File tmp = files.remove(fileName);
+            return tmp;
+        }
+        return null;
+    }
+
     public boolean addDirectory(Directory dir) {
         if (!subDirectories.containsKey(dir.getName())) {
             subDirectories.put(dir.getName(), dir);
@@ -96,22 +101,23 @@ class Directory implements Serializable {
     }
 }
 
-// Main SimpleFileSystem with fixed size and directory management
 class SimpleFileSystem implements Serializable {
-    private static final int TOTAL_BLOCKS = 4096 * 500;  // File system size (1MB with 256-byte blocks)
-    private Block[] blocks = new Block[TOTAL_BLOCKS];
-    private BitSet bitMap = new BitSet(TOTAL_BLOCKS); // Bitmap to track used blocks
-    private Directory rootDirectory = new Directory("/", null);  // Root directory
-    Directory currentDirectory = rootDirectory;          // Start in root directory
+    //private static final int TOTAL_BLOCKS = 4096 * 5;  // File system size (1MB with 256-byte blocks)
+    final int TOTAL_BLOCKS;
+    Block[] blocks;
+    BitSet bitMap;
+    Directory rootDirectory = new Directory("/", null);
+    Directory currentDirectory = rootDirectory;
 
-    public SimpleFileSystem() {
-        // Initialize the blocks for the file system
+    public SimpleFileSystem(int size) {
+        TOTAL_BLOCKS = size;
+        blocks = new Block[TOTAL_BLOCKS];
+        bitMap = new BitSet(TOTAL_BLOCKS);
         for (int i = 0; i < TOTAL_BLOCKS; i++) {
             blocks[i] = new Block();
         }
     }
 
-    // Change the current working directory
     public void changeDirectory(String dirName) {
         if (dirName.equals("..")) {
             if (currentDirectory.getParent() != null) {
@@ -134,7 +140,15 @@ class SimpleFileSystem implements Serializable {
         }
     }
 
-    // Create a new directory
+    public void listDirectorySize() {
+        for (String dirName : currentDirectory.getSubDirectories().keySet()) {
+            System.out.println("[DIR] " + dirName);
+        }
+        for (File file : currentDirectory.getFiles().values()) {
+            System.out.println("[FILE] " + file.getFileName() + " ----- " + file.getSize());
+        }
+    }
+
     public void makeDirectory(String dirName) {
         if (!currentDirectory.getSubDirectories().containsKey(dirName)) {
             Directory newDir = new Directory(dirName, currentDirectory);
@@ -144,30 +158,135 @@ class SimpleFileSystem implements Serializable {
         }
     }
 
-    // Remove a directory
     public void removeDirectory(String dirName) {
         if (currentDirectory.getSubDirectories().containsKey(dirName)) {
             currentDirectory.getSubDirectories().remove(dirName);
-            System.out.println("Directory removed: " + dirName);
         } else {
             System.out.println("Directory not found: " + dirName);
         }
     }
 
-    // Create a new file
-    public void createFile(String fileName) {
-        if (!currentDirectory.getFiles().containsKey(fileName)) {
+}
+
+// Main application
+public class FileSystemApp {
+
+    public static void main(String[] args) {
+        SimpleFileSystem fs = new SimpleFileSystem(5);
+        //SimpleFileSystem fs = Helper.loadFileSystem("myFileSystem.dat");
+        String curPath = fs.currentDirectory.path;
+        String cmd;
+        String[] cmdPart;
+        do {
+            System.out.print("MSFS>>" + "myFileSystem" + curPath);
+            cmd = appTerminal.scanner.nextLine();
+            cmdPart = cmd.split(" ");
+            curPath = handleCommand(fs, curPath, cmd, cmdPart);
+            Helper.saveFileSystem("myFileSystem.dat", fs);
+        } while (!cmd.equals("exit()"));
+    }
+
+    private static String handleCommand(SimpleFileSystem fs, String curPath, String cmd, String[] cmdPart) {
+        switch (cmdPart[0]) {
+            case "cd": {
+                if (cmdPart.length == 2) {
+                    fs.changeDirectory(cmdPart[1]);
+                    curPath = fs.currentDirectory.path;
+                }
+                break;
+            }
+            case "ls": {
+                if (cmdPart.length == 1) {
+                    fs.listDirectory();
+                }
+                break;
+            }
+            case "mkdir": {
+                if (cmdPart.length == 2) {
+                    fs.makeDirectory(cmdPart[1]);
+                }
+                break;
+            }
+            case "rm": {
+                if (cmdPart.length == 2) {
+                    fs.removeDirectory(cmdPart[1]);
+                }
+                break;
+            }
+            case "rmf": {
+                if (cmdPart.length == 2) {
+                    FileHandleHelper.removeFile(fs, cmdPart[1]);
+                }
+                break;
+            }
+            case "touch": {
+                if (cmdPart.length == 2) {
+                    FileHandleHelper.createFile(fs, cmdPart[1]);
+                } else if (cmdPart.length == 3) {
+                    FileHandleHelper.writeFile(fs, cmdPart[1], cmdPart[2].getBytes());
+                }
+                break;
+            }
+            case "cat": {
+                if (cmdPart.length == 2) {
+                    FileHandleHelper.readFile(fs, cmdPart[1]);
+                }
+                break;
+            }
+            default: {
+                if (!cmd.equals("exit()")) {
+                    System.out.println("Invalid command");
+                }
+            }
+        }
+        return curPath;
+    }
+}
+
+class appTerminal {
+    public static Scanner scanner = new Scanner(System.in);
+}
+
+class Helper {
+    public static void saveFileSystem(String fileName, SimpleFileSystem fs) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(fileName))) {
+            oos.writeObject(fs);
+            //System.out.println("File system saved to " + fileName +"\n");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static SimpleFileSystem loadFileSystem(String fileName) {
+        System.out.println("mounting disk image ....");
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(fileName))) {
+            return (SimpleFileSystem) ois.readObject();
+        } catch (ClassNotFoundException e) {
+            System.out.println("Disk image is broken! create new one of format it");
+            e.printStackTrace();
+            return null;
+        } catch (IOException e) {
+            System.out.println(fileName + " disk image not fount in directory!");
+            e.printStackTrace();
+            return null;
+        }
+    }
+}
+
+class FileHandleHelper{
+
+    public static void createFile(SimpleFileSystem fs, String fileName) {
+        if (!fs.currentDirectory.getFiles().containsKey(fileName)) {
             File newFile = new File(fileName);
-            currentDirectory.addFile(newFile);
-            System.out.println("File created: " + fileName + "\n");
+            fs.currentDirectory.addFile(newFile);
         } else {
-            System.out.println("File already exists: " + fileName + "\n");
+            System.out.println("File already exists: " + fileName);
         }
     }
 
     // Write data to a file
-    public void writeFile(String fileName, byte[] data) {
-        File file = currentDirectory.getFiles().get(fileName);
+    public static void writeFile(SimpleFileSystem fs, String fileName, byte[] data) {
+        File file = fs.currentDirectory.getFiles().get(fileName);
         if (file == null) {
             System.out.println("File not found: " + fileName + "\n");
             return;
@@ -177,29 +296,26 @@ class SimpleFileSystem implements Serializable {
         int dataOffset = 0;
 
         while (remainingData > 0) {
-            int freeBlock = bitMap.nextClearBit(0);
-            if (freeBlock >= TOTAL_BLOCKS) {
+            int freeBlock = fs.bitMap.nextClearBit(0);
+            if (freeBlock >= fs.TOTAL_BLOCKS) {
                 System.out.println("No more free blocks available.\n");
                 return;
             }
 
-            bitMap.set(freeBlock);
+            fs.bitMap.set(freeBlock);
             file.addBlock(freeBlock);
 
             int writeSize = Math.min(remainingData, Block.BLOCK_SIZE);
-            blocks[freeBlock].writeData(Arrays.copyOfRange(data, dataOffset, dataOffset + writeSize), 0);
+            fs.blocks[freeBlock].writeData(Arrays.copyOfRange(data, dataOffset, dataOffset + writeSize), 0);
 
             remainingData -= writeSize;
             dataOffset += writeSize;
             file.setSize(file.getSize() + writeSize);
         }
-
-        System.out.println("Data written to file: " + fileName + "\n");
     }
 
-    // Read data from a file
-    public void readFile(String fileName) {
-        File file = currentDirectory.getFiles().get(fileName);
+    public static void readFile(SimpleFileSystem fs, String fileName) {
+        File file = fs.currentDirectory.getFiles().get(fileName);
         if (file == null) {
             System.out.println("File not found: " + fileName + "\n");
             return;
@@ -207,113 +323,23 @@ class SimpleFileSystem implements Serializable {
 
         List<Integer> blockPointers = file.getBlockPointers();
         for (int blockIndex : blockPointers) {
-            byte[] data = blocks[blockIndex].readData(0, Block.BLOCK_SIZE);
+            byte[] data = fs.blocks[blockIndex].readData(0, Block.BLOCK_SIZE);
             System.out.print(new String(data).trim());
         }
         System.out.println();
     }
 
-    // Save the file system to a file
-    public void saveFileSystem(String fileName) {
-        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(fileName))) {
-            oos.writeObject(this);
-            System.out.println("File system saved to " + fileName +"\n");
-        } catch (IOException e) {
-            e.printStackTrace();
+    public static void removeFile(SimpleFileSystem fs, String fileName) {
+        File file = fs.currentDirectory.removeFile(fileName);
+        if (file == null) {
+            System.out.println("File not found: " + fileName + "\n");
+            return;
         }
-    }
 
-    // Load the file system from a file
-    public static SimpleFileSystem loadFileSystem(String fileName) {
-        System.out.println("mounting disk image ....");
-        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(fileName))) {
-            return (SimpleFileSystem) ois.readObject();
-        } catch (ClassNotFoundException e) {
-            System.out.println("Disk image is broken! create new one of format it\n");
-            e.printStackTrace();
-            return null;
-        } catch (IOException e){
-            System.out.println(fileName + " disk image not fount in directory!\n");
-            e.printStackTrace();
-            return null;
+        List<Integer> blockPointers = file.getBlockPointers();
+        for (int blockIndex : blockPointers) {
+            fs.bitMap.clear(blockIndex);
         }
+
     }
-}
-
-// Main application
-public class FileSystemApp {
-    public static void main(String[] args) {
-        SimpleFileSystem fs = new SimpleFileSystem();
-        //SimpleFileSystem fs = SimpleFileSystem.loadFileSystem("myFileSystem.dat");
-        String curPath = fs.currentDirectory.path;
-        String cmd;
-        do {
-            System.out.print("MSFS>>"+"myFileSystem"+curPath);
-            cmd = appTerminal.scanner.nextLine();
-            String[] cmdPart  = cmd.split(" ");
-            switch (cmdPart[0]){
-                case "cd": {
-                    if (cmdPart.length == 2) {
-                        fs.changeDirectory(cmdPart[1]);
-                        curPath = fs.currentDirectory.path;
-                    }
-                    break;
-                }
-                case "ls": {
-                    if (cmdPart.length == 1) {
-                        fs.listDirectory();
-                    }
-                    break;
-                }
-                case "mkdir":{
-                    if (cmdPart.length == 2){
-                        fs.makeDirectory(cmdPart[1]);
-                    }
-                    break;
-                }
-                case "rm":{
-                    if (cmdPart.length == 2){
-                        fs.removeDirectory(cmdPart[1]);
-                    }
-                    break;
-                }
-                default:{
-                    System.out.println("Invalid command");
-                }
-            }
-        }while (!cmd.equals("exit()"));
-
-
-//        // Create directories and files
-//        fs.makeDirectory("docs");
-//        fs.changeDirectory("docs");
-//        fs.createFile("test.txt");
-//        fs.writeFile("test.txt", "Hello from the docs directory!".getBytes());
-//        fs.listDirectory();
-//        fs.readFile("test.txt");
-//        fs.makeDirectory("docs2");
-        fs.listDirectory();
-        fs.changeDirectory("docs");
-        fs.listDirectory();
-        // Navigate and list directories
-//        fs.changeDirectory("..");
-//        fs.listDirectory();
-
-        // Save the file system to disk
-//        fs.saveFileSystem("myFileSystem.dat");
-
-        // Load the file system from disk
-//        SimpleFileSystem loadedFs = SimpleFileSystem.loadFileSystem("myFileSystem.dat");
-//        if (loadedFs != null) {
-//            loadedFs.listDirectory();
-//        }
-    }
-}
-class appTerminal {
-    public static Scanner scanner = new Scanner(System.in);
-
-    
-}
-class HandleCMD{
-
 }
