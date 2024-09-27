@@ -110,7 +110,7 @@ class FileSystem implements Serializable {
     Directory currentDirectory = rootDirectory;
 
     public FileSystem(int size) {
-        TOTAL_BLOCKS = size;
+        TOTAL_BLOCKS = size /256;
         blocks = new Block[TOTAL_BLOCKS];
         bitMap = new BitSet(TOTAL_BLOCKS);
         for (int i = 0; i < TOTAL_BLOCKS; i++) {
@@ -273,12 +273,12 @@ class Helper {
     }
 
     public static String getFileSize(int blcoks_size) {
-        double tmp_size = blcoks_size;
+        double tmp_size = blcoks_size * 256;
         if (tmp_size < 1024) {
             return tmp_size + " b";
         }
-        if (tmp_size < 1024) {
-            tmp_size = blcoks_size / 1024;
+        if (tmp_size < 4096) {
+            tmp_size = tmp_size / 1024;
             return tmp_size + " Kb";
         } else {
             tmp_size /= 1024;
