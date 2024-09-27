@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Define the path to your JAR file
+JAR_PATH="./MyApp.jar"
+# jar cfm MyApp.jar manifest.txt File.class FileHandleHelper.class FileSystem.class FileSystemApp.class appTerminal.class Block.class Directory.class DirectoryHelper.class Helper.class
+# Copy MyApp.jar to the current directory
+# cp "$JAR_PATH" .
+
+# Run MyApp.jar in the current directory
+java -jar ./MyApp.jar "$@"

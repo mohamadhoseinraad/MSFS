@@ -1,1 +1,9 @@
 /myFileSystem.dat
+/src/appTerminal.class
+/src/Block.class
+/src/Directory.class
+/src/File.class
+/src/FileHandleHelper.class
+/src/FileSystem.class
+/out/*
+/out/
